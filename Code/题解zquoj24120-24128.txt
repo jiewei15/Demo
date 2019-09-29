@@ -1,0 +1,1128 @@
+24120	Crazy Fences
+
+/*
+Solution Notes (Travis Hance): Since all of the fences are either vertical or horizontal, we can view the plane as a discrete graph, with a vertex repsenting a square with vertices (x,y), (x+1,y), (x+1,y+1), and (x,y+1), where x and y are integers. Each vertex is connected to its four neighbors in the square grid, except, of course, when such a neighbor is separated by a fence. Each cow can be assigned to some vertex in this graph (any of the four squares with that cow as a vertex). Then all the cows within a single connected-component of the graph form a community. We can find all the connected-components of the graph using flood-fill.
+
+Technically, this graph of squares is infinitely large, but we can restrict to a rectangle that is just barely large enough to hold all the fences, although it needs to leave room on the sides so that paths can get around the fences. That is, if the minimum and maximum coordinates of the fences are X_min, X_max, Y_min, and Y_max, it suffices to look at a rectangle spanning from X_min - 1 to X_max + 1 lengthwise and from Y_min - 1 to Y_max + 1 heightwise.
+
+. . . . . . . . . . . . .
+. ._._._._._._. . . . . .
+. . . . . . . | . . . | .
+. . . | . . . | . . | . .
+. ._._| . . . |_._._|_. .
+. | . | . . . | . . . . .
+. |_._| ._._. | . . . . .
+. . . . . . . . . . . . .
+
+Unfortunately, the coordinates of the fence posts can be anywhere in the range 0 .. 1,000,000. That means the graph we consider would need to be very large, over 1,000,0002 vertices. There is a trick to reduce the number of vertices though. If there are N fences (2N endpoints) and C cows, then there are only 2N+C points which are important. For instance, if for some value X none of the important points have x-coordinate X, then we can just remove that column completely without changing the answer. So, we can sort all the important coordinates. We look at the ith smallest such value, and replace every instance of it with i. Then we can make a grid which only of size approximately 2N+C in both width and height. Compressing the above graph in this way gives:
+
+. . . . . . . . .
+. ._._._._. . . .
+. . . . . | . | .
+. ._| . . |_|_. .
+. |_| ._. | . . .
+. . . . . . . . .
+
+Then we can do flood fill in O((N+C)2) time. Here is Johnny Ho's solution, in C++:
+*/
+
+#include <cstdio>
+#include <iostream>
+#include <cstring>
+#include <algorithm>
+using namespace std;
+ 
+const int inf = 1 << 30;
+ 
+int x[3010], y[3010];
+ 
+int t[3010];
+
+int compress(int a[3010], int z) {
+    memcpy(t, a, sizeof(t));
+    sort(t, t + z);
+    int nz = unique(t, t + z) - t;
+    for (int i = 0; i < z; i++) {
+        a[i] = (lower_bound(t, t + nz, a[i]) - t) * 2;
+    }
+    return nz * 2;
+}
+ 
+int xz, yz;
+char arr[6010][6010];
+ 
+int gz;
+int mx[4] = {-1, 0, 1, 0};
+int my[4] = {0, -1, 0, 1};
+
+void dfs(int x, int y) {
+    if (x < 0 || x >= xz || y < 0 || y >= yz) return;
+    if (arr[x][y] == 'X') return;
+    gz += (arr[x][y] == 'C');
+    arr[x][y] = 'X';
+    for (int i = 0; i < 4; i++) {
+        dfs(x + mx[i], y + my[i]);
+    }
+}
+ 
+int main()
+{
+    int n, m;
+    cin >> n >> m;
+    int z = 0;
+    x[z] = y[z] = -inf; z++;
+    x[z] = y[z] = inf; z++;
+    for (int i = 0; i < 2 * n; i++) {
+        cin >> x[z] >> y[z]; z++;
+    }
+    for (int i = 0; i < m; i++) {
+        cin >> x[z] >> y[z]; z++;
+    }
+    xz = compress(x, z);
+    yz = compress(y, z);
+    memset(arr, '.', sizeof(arr));
+    for (int i = 0; i < n; i++) {
+        int a = i * 2 + 2;
+        int b = i * 2 + 3;
+        int x1 = x[a], y1 = y[a], x2 = x[b], y2 = y[b];
+        if (x1 == x2) {
+            if (y1 > y2) swap(y1, y2);
+            while (y1 <= y2) {
+                arr[x1][y1] = 'X';
+                y1++;
+            }
+        } else {
+            if (x1 > x2) swap(x1, x2);
+            while (x1 <= x2) {
+                arr[x1][y1] = 'X';
+                x1++;
+            }
+        }
+    }
+    for (int i = 0; i < m; i++) {
+        int a = i + 2 * n + 2;
+        arr[x[a]][y[a]] = 'C';
+    }
+    int ans = 0;
+    for (int i = 0; i < m; i++) {
+        int a = i + 2 * n + 2;
+        gz = 0;
+        dfs(x[a], y[a]);
+        ans = max(ans, gz);
+    }
+    cout << ans << endl;
+}
+
+
+24121	Meet and Greet
+
+/*
+Solution Notes (Jonathan Paulson): This is a simulation problem, and the constraint that the cows only travel for 10^6 seconds makes it pretty straightforward. You can just write down for each cow where it is at each second as you read the input, and then count the number of times T when their positions at T were different but their positions at T+1 were the same.
+
+The problem is still efficiently solvable if the times are much larger (say, up to 10^12) but the number of instructions is still small (say, 100,000). Then the solution is a version of coordinate compression (which also makes an appearance in "crazy fences"); the only "interesting times" are when a cows speed changes, and there are at most 200,000 of these (each instruction causes an increase and then decrease in speed; actually, since the start of one instruction and the beginning of another overlap, the real number is more like 100,000 but this isn't important). To simplify implementation of this idea, it is useful to keep track of Bessie's movement relative to Elsie, instead of their absolute positions. Then a moo occurs when Bessie passes 0. Now that time is divided up into ~100,000 intervals of constant speed, it is easy to compute the change in position due to each time interval, and keep track of the number of times Bessie passes 0. Here is Travis Hance's solution in C++:
+*/
+
+#include <cstdio>
+#include <vector>
+#include <algorithm>
+using namespace std;
+
+#define BESSIE 0
+#define ELSIE 1
+
+// A "Key Point" occurs at any time a cow stops or turns around.
+// The cow field represents which cow is changing state, either
+// BESSIE or ELSIE. The newdir field represents the new direction
+// that cows moves in; either -1 for left, 1 for right, and 0
+// for stopped.
+struct KeyPoint {
+    int t;
+    int cow;
+    int newdir;
+    KeyPoint(int t, int cow, int newdir)
+        : t(t), cow(cow), newdir(newdir) { }
+    bool operator<(KeyPoint const& o) const {
+        return t < o.t;
+    }
+};
+
+vector<KeyPoint> keyPoints;
+
+// Reads the input for the given cow and stores its key points
+// in the keyPoints vector. Returns the direction that the given
+// cow moves at the beginning.
+int readKeyPoints(int n, int cow) {
+    int t = 0;
+    int initdir;
+    for (int i = 0; i < n; i++) {
+        int dt;
+        scanf("%d", &dt);
+
+        char c;
+        do {
+            c = fgetc(stdin);
+        } while (c != 'L' && c != 'R');
+        int dir = (c == 'R' ? 1 : -1);
+
+        if (t == 0) {
+            initdir = dir;
+        } else {
+            keyPoints.push_back(KeyPoint(t, cow, dir));
+        }
+
+        t += dt;
+    }
+    keyPoints.push_back(KeyPoint(t, cow, 0));
+    return initdir;
+}
+
+int main()
+{
+    int nSteps1, nSteps2;
+    scanf("%d", &nSteps1);
+    scanf("%d", &nSteps2);
+
+    // Read input and initialize the directions of the cows.
+    int dir1 = readKeyPoints(nSteps1, BESSIE);
+    int dir2 = readKeyPoints(nSteps2, ELSIE);
+
+    // Sort by time. We could do a linear-time merge instead but
+    // this is easier and nearly as fast.
+    sort(keyPoints.begin(), keyPoints.end());
+    
+    // Initialize time and positions of cows.
+    int t = 0;
+    int x1 = 0;
+    int x2 = 0;
+
+    // Initialize counter for the total number of "moo"s
+    int nMoos = 0;
+
+    for (int i = 0; i < keyPoints.size(); i++) {
+        // Look at the next key point.
+        int new_t = keyPoints[i].t;
+        int new_x1 = x1 + (new_t - t) * dir1;
+        int new_x2 = x2 + (new_t - t) * dir2;
+
+        // Determine if the cows moo at some time in the interval (t, new_t].
+        if (x1 != x2 && (new_x1 == new_x2 || ((x1 < x2) ^ (new_x1 < new_x2)))) {
+            nMoos++;
+        }
+
+        // Update to the new state.
+        t = new_t;
+        x1 = new_x1;
+        x2 = new_x2;
+        if (keyPoints[i].cow == BESSIE) {
+            dir1 = keyPoints[i].newdir;
+        } else {
+            dir2 = keyPoints[i].newdir;
+        }
+    }
+
+    printf("%d\n", nMoos);
+}
+
+
+
+24122	Scrambled Letters
+
+/*
+Solution Notes (Jonathan Paulson): A string appears earliest if its letters are sorted in alphabetical order (i.e. all 'a' before all 'b' before all 'c' ... before all 'z') and every other string was sorted in reverse alphabetical order. This is because taking any other string and creating a lexicographically larger one would only move it further back in the overall ordering. Similarly, a string appears latest if it's letters are sorted in reverse alphabetical order and every other string is sorted in alphabetical order.
+
+This observation leads to a simple solution idea: make a list of all the strings in alphabetical and reverse alphabetical order, and sort them. Then run through the list, keeping track of how many alphabetical and reverse-alphabetical strings you've seen so far. When you run across a string in reverse alphabetical order, its latest possible position is the number of alphabetical strings you've seen so far minus 1 (for the alphabetical version of itself, which always comes before it, but shouldn't count). When you run across a string is alphabetical order, its earliest possible position is the number of reverse-alphabetical strings you've seen so far (no minus 1, because the reverse-alphabetical version of itself always comes later).
+
+One detail: for this idea to work for strings whose two versions are the same (like "a" or "bb") you need to sort so that alphabetical versions come before reverse-alphabetical versions in case of a tie, or track whether the reverse version has already been encountered. Here is Travis Hance's solution in C++:
+*/
+
+#include <cstdio>
+#include <iostream>
+#include <algorithm>
+#include <cstring>
+#include <string>
+#include <vector>
+using namespace std;
+
+#define NMAX 50000
+#define LENMAX 20
+
+string cows[NMAX];
+
+struct Entry {
+    string st;
+    int index;
+    bool is_rev;
+    bool operator<(Entry const& o) const {
+        if (st == o.st) {
+            return (!is_rev) && o.is_rev;
+        }
+        return st < o.st;
+    }
+};
+Entry entries[NMAX*2];
+
+int lowest[NMAX];
+int highest[NMAX];
+
+void compute(int n) {
+    for (int i = 0; i < n; i++) {
+        sort(cows[i].begin(), cows[i].end());
+
+        entries[2*i].st = cows[i];
+        entries[2*i].index = i;
+        entries[2*i].is_rev = false;
+
+        entries[2*i+1].st = cows[i];
+        reverse(entries[2*i+1].st.begin(), entries[2*i+1].st.end());
+        entries[2*i+1].index = i;
+        entries[2*i+1].is_rev = true;
+    }
+
+    sort(entries, entries + (2*n));
+
+    int rev_count = 0;
+    for (int i = 0; i < 2*n; i++) {
+        if (entries[i].is_rev) {
+            rev_count++;
+        } else {
+            int index = entries[i].index;
+            lowest[index] = rev_count + 1;
+        }
+    }
+
+    int fwd_count = 0;
+    for (int i = 2*n-1; i >= 0; i--) {
+        if (!entries[i].is_rev) {
+            fwd_count++;
+        } else {
+            int index = entries[i].index;
+            highest[index] = n - fwd_count;
+        }
+    }
+}
+
+int main( ) {
+    int n;
+    scanf("%d", &n);
+    for (int i = 0; i < n; i++) {
+        cin >> cows[i];
+    }
+
+    compute(n);
+
+    for (int i = 0; i < n; i++) {
+        printf("%d %d\n", lowest[i], highest[i]);
+    }
+    return 0;
+}
+
+
+
+24123	First!
+
+/*
+Solution Notes (Travis Hance): Given a string s, we first look at what conditions we need such that s could possibly be lexicographically first. Compare s to any other string t. Suppose s and t first differ on the i^th character; that is, s[i] != t[i], but s[j] = t[j] for all j < i. Then, for s to be first lexicographically for some ordering of the alphabet, we would need s[i] to come before t[i] in that ordering.
+
+Thus to determine if s could possibly be lexicographically first, we get a constraint of the form "character X must come before character Y in the ordering of the alphabet". (Although we need to be careful when s or t is a prefix of the other.) If we collect all these constraints, this reduces to checking if a graph is acyclic, where the graph has vertices corresponding to the letters of the alphabet. We can do this check in O((alphabet size)^2), where here, alphabet size = 26. We get one graph for each string, so once we have constructed all these graphs, we can finish in O(N * (alphabet size)^2)).
+
+Thus we just need to figure out how to construct all N of these graphs efficiently. Naively, we can construct one such graph in time proportional to the total input size, but it is not nearly good enough to do that N times. The trick now is to first construct a trie on all the input strings. Note that for any string s, the graph for s depends only on the path from s to the root on the trie, and the children of any nodes on that path. Thus for any string, we can construct the corresponding graph simply by walking up the tree to the root and looking at the children as we walk up. For a string s of length l, this takes O(l * (alphabet size)). In total, this takes O(N * (alphabet size)), which is dominated by the time taken to do cyclicity testing.
+
+运行时间：1011ms 使用内存：27368KB
+*/
+
+#include <iostream>
+#include <cstdio>
+#include <algorithm>
+#include <vector>
+#include <set>
+#include <utility>
+#include <cstring>
+#include <stack>
+#include <queue>
+
+using namespace std;
+
+typedef pair<int, int> pii;
+typedef pair<int, pii> edge;
+
+const int maxc = 26;
+vector<string> vs;
+vector<string> as;
+int N;
+int adj[maxc][maxc];
+int deg[maxc];
+
+struct node {
+	node *child[maxc];
+	bool is_end;
+	node() {
+		for (int i = 0; i < maxc; i++) child[i] = NULL;
+		is_end = false;
+	}
+	void insert(string &s, int i, int id) {
+		if (i == s.size()) {
+			is_end = true;
+			return;
+		}
+		int t = s[i] - 'a';
+		if (child[t] == NULL) {
+			//doesn't exist
+			child[t] = new node(); // make a new node
+		}
+		child[t]->insert(s, i + 1, id);
+	}
+	bool dfs(string &s, int i) {
+		if (i == s.size()) {
+			return true;
+		}
+		if (is_end) return false;
+		int t = s[i] - 'a';
+		for (int j = 0; j < maxc; j++) {
+			if (j != t && child[j] != NULL) {
+				adj[t][j] = 1;
+			}
+		}
+		return child[t]->dfs(s, i + 1);
+	}
+};
+
+bool check() {
+// if has cycle return false, else return true
+	for (int i = 0; i < maxc; i++) {
+		for (int j = 0; j < maxc; j++) {
+			if (adj[i][j]) {
+				deg[j]++; // incoming to node j
+			}
+		}
+	}
+	queue<int> q;
+	for (int i = 0; i < maxc; i++) {
+		if (deg[i] == 0) q.push(i);
+	}
+	int c = 0;
+	while (q.size()) {
+		int cur = q.front();
+		q.pop();
+		c++;
+		for (int i = 0; i < maxc; i++) {
+			if (adj[cur][i]) {
+				deg[i]--;
+				if (deg[i] == 0) q.push(i);
+			}
+		}
+	}
+	return c == maxc;
+}
+
+node *root = new node();
+
+int main() {
+	int ans = 0;
+	cin >> N;
+	for (int i = 0; i < N; i++) {
+		string s;
+		cin >> s;
+		vs.push_back(s);
+		root->insert(s, 0, i);
+	}
+	for (int i = 0; i < N; i++) {
+		memset(adj, 0, sizeof(adj));
+		memset(deg, 0, sizeof(deg));
+		if (root->dfs(vs[i], 0) && check()) {
+			ans++;
+			as.push_back(vs[i]);
+		}
+	}
+	cout << ans << '\n';
+	for (int i = 0; i < ans; i++) {
+		cout << as[i] << '\n';
+	}
+	return 0;
+}
+
+
+
+24124	Gangs of Istanbull
+
+/*
+Solution Notes (Mark Gordon): This problem was inspired from the online, constant space majority algorithm. There are several ways to solve this problem, including a linear time algorithm.
+
+The (roughly) cubic algorithm relies on a procedure that given the state of the field and remaining cows can determine how many cows from gang 1 can be left at the end. Given the existence of that algorithm we can easily compute the lexicographically first solution by repeatedly appending the cow from the smallest gang that keeps this number constant. The code fragment below demonstrates how this might be done.
+*/
+int cur_gang = 0;
+int cur_cows = 0;
+int res = max_cows(cur_gang, cur_cows, G);
+if(res > 0) {
+  cout << "YES\n" << res << "\n";
+  for(int i = 0; i < N; i++) {
+    /* Find the smallest gang to place next. */
+    int prev_cur_gang = cur_gang;
+    int prev_cur_cows = cur_cows;
+    for(int j = 0; ; j++) {
+      if(G[j] == 0) {
+        continue;
+      }
+
+      G[j]--;
+      update_state(cur_gang, cur_cows, j);
+      if(max_cows(cur_gang, cur_cows, G) == res) {
+        cout << j + 1 << '\n';
+        break;
+      }
+
+      /* Placing gang j next didn't work out.  Undo the changes. */
+      G[j]++;
+      cur_gang = prev_cur_gang;
+      cur_cows = prev_cur_cows;
+    }
+  }
+} else {
+  cout << "NO" << endl;
+}
+/*
+The intuition for the cubic algorithm is that we always can send gang 1 cows last. Additionally we can send all of the largest other gang of cows first and then repeatedly send a cow from the largest remaining gang. Indeed if we do this then we always end up with the maximum number of cows from gang 1 left. But why is this so?
+
+Consider that maximizing the number of gang 1 cows at the end is the same as minimizing the number of other cows on the field prior to when we send the gang 1 cows.
+
+Initially we fill up field with the largest gang. Then we send members of the other gangs until there are no cows on the field or we run out of cows to send. In the later case we've clearly done the best we can. In the former case the difference between the two largest remaining gangs is at most 1. Therefore we can avoid sending a cow from the same gang twice in a row. This prevents more than one cow from ever being on the field. Since the parity of the number of cows on the field must equal the number of cows we've sent this is clearly the best we can do.
+
+The linear algorithm is a bit trickier, and for brevity this article does not contain a complete proof of its correctness. First, when there are only two gangs the solution is always to send all of gang 1 first and then all of gang 2.
+
+Otherwise first we compute g, the number of cows from gang 1 that can be present at the end. If A[n] gives the number of cows remaining in gang n then the optimal solution always begins by sending A[1] - g cows from gang 1 and ends by sending g cows from gang 1.
+
+For the rest of the algorithm we set A[1] to 0 and maintain the invariant that
+
+A + {GANG_ON_FIELD} * COWS_ON_FIELD has no majority element
+That is, including the cows currently on the field, there is no gang that has a strict majority of the remaining cows. This means there are essentially three important gangs we might consider placing next: the smallest index gang, the largest gang, or the gang currently on the field. We only need to check to determine the smallest index of these that doesn't violate our invariant. The algorithm can be simplified even further by realizing that the gang currently on the field is either exhausted or falls into one of the other categories.
+
+Below is my code for the simple O(N^3 log N) algorithm
+
+运行时间：4ms 使用内存：672KB
+*/
+
+#include <iostream>
+#include <vector>
+#include <algorithm>
+#include <stdio.h>
+using namespace std;
+
+void update_state(int& cur_gang, int& cur_cows, int cow_gang) {
+  if(cur_cows == 0) {
+    cur_gang = cow_gang;
+  }
+  if(cur_gang == cow_gang) {
+    cur_cows++;
+  } else {
+    cur_cows--;
+  }
+}
+
+/* Compute the number of cows from the first gang can be on the field at the end. */
+int max_cows(int cur_gang, int cur_cows, vector<int> G) {
+  /* Keep trying to place the gang from the largest gang left. */
+  sort(G.begin() + 1, G.end());
+  while(G.back() > 0) {
+    for(int i = G.size() - 1; i > 0; i--) {
+      update_state(cur_gang, cur_cows, i);
+      G[i]--;
+      if(G[i - 1] <= G[i]) {
+        break;
+      }
+    }
+  }
+  /* Finish by placing all of Bessie's gang. */
+  for(int i = 0; i < G[0]; i++) {
+    update_state(cur_gang, cur_cows, 0);
+  }
+  return cur_gang == 0 ? cur_cows : 0;
+}
+
+int main()
+{
+  int N, M; cin >> N >> M;
+  vector<int> G(M);
+  for(int i = 0; i < N; i++) {
+    cin >> G[i];
+  }
+
+  int cur_gang = 0;
+  int cur_cows = 0;
+  int res = max_cows(cur_gang, cur_cows, G);
+  if(res > 0) {
+    cout << "YES\n" << res << "\n";
+    for(int i = 0; i < N; i++) {
+      /* Find the smallest gang to place next. */
+      int prev_cur_gang = cur_gang;
+      int prev_cur_cows = cur_cows;
+      for(int j = 0; ; j++) {
+        if(G[j] == 0) {
+          continue;
+        }
+
+        G[j]--;
+        update_state(cur_gang, cur_cows, j);
+        if(max_cows(cur_gang, cur_cows, G) == res) {
+          cout << j + 1 << '\n';
+          break;
+        }
+
+        /* Placing gang j next didn't work out.  Undo the changes. */
+        G[j]++;
+        cur_gang = prev_cur_gang;
+        cur_cows = prev_cur_cows;
+      }
+    }
+  } else {
+    cout << "NO" << endl;
+  }
+  return 0;
+}
+
+
+
+24125	Running Away From the Barn
+
+/*
+Solution Notes (Travis Hance and Richard Peng): The problem asks us to find, given a rooted tree T, for each node v, the number of descendants within a certain distance L. If we assign to each node v its depth (that is, the distance of that node from the root), then for a node v of depth D, we just want to count the number of descendants of depth at most D+L. 
+
+The simplest and most concise way of doing this problem is to 'flip over' what we need to compute. For each vertex, we find how far up the tree is within a distance of L from it. This can be done either by doing a DFS traversal of the tree and binary searching on the search stack, or by building 'jump' pointers of distance 2i upwards in the tree. 
+
+Once this information is found, all we need to do is convert it back into information about descendants. This could be done by marking the first position up the tree that's at a distance of more than L from it. The answer at a vertex can then be computed by summing over the answers for its descendants, and subtracting away the number of times the current vertex is marked. 
+
+A very concise and well written solution by Roman Rubanenko is below. His code computed tables that move up the tree by a distance of 2i, and made clever use of the fact that the parent of node i is at a smaller index
+
+*/
+Var ans,d:array[0..200333]of int64;
+    i,n,j,v:longint;
+    len:int64;
+    p:array[0..200333,0..19]of longint;
+  begin
+    assign(input,'runaway.in');reset(input);
+    assign(output,'runaway.out');rewrite(output);
+    read(n,len);
+    ans[1]:=1;
+    for i:=2 to n do
+      begin
+        read(p[i,0]);
+        read(d[i]);
+        d[i]:=d[i]+d[p[i,0]];
+        for j:=1 to 18 do
+          p[i,j]:=p[p[i,j-1],j-1];
+        v:=i;
+        for j:=18 downto 0 do
+          if d[i]-d[p[v,j]]<=len then v:=p[v,j];
+        inc(ans[i]);
+        dec(ans[p[v,0]]);
+      end;
+    for i:=n downto 1 do
+      ans[p[i,0]]:=ans[p[i,0]]+ans[i];
+    for i:=1 to n do
+      Writeln(ans[i]);
+  end.
+  /*
+A more complicated solution would be to count the number of descendants of each node directly. For a node v, we will say the set of such descendants is S(v).
+
+To find the size of S(v) for each v, we try at first to simply find the entire set S(v). We can do this recursively: to find S(v), first take the union of S(v') for all children v' of v, and then insert v itself. This set can only be too large, since if a descendant of v is within distance L of v, then it is within distance L of one of v's children. Then, we just need to remove nodes from this set which are too far away.
+
+To make this solution feasible, we need an efficient data structure to store the sets S(v). This data structure needs to be able to support the removal of objects of high distance, so the natural choice would be a priority queue, where we insert nodes keyed by depth. Then we need to worry about taking the union of sets. Many efficient priority queues do support a union operation (commonly called "meld" or "merge"), such as Fibonacci heaps, Binomial heaps, and Pairing heaps. However, most programming language implementations of priority queues (e.g., the C++ std::priority_queue, or Java's PriorityQueue) do not support this operation.
+
+We could implement a priority queue from scratch, but the following trick is probably easier: we can two priority queues of sizes m and n simply by popping, one-by-one, elements of the first priority queue, and inserting them into the second. This takes O(m log n) time. Thus if we are careful to always merge the smaller heap into the larger one (i.e., m < n) rather than the other way around, one can show that, summed over all nodes of the tree, this will only take O(N log^2 N) time.
+
+An alternate approach to the problem is to start by making an in-order traversal of the tree and writing out the nodes visited, in order. Then, any subtree of the tree corresponds to a contiguous range in this list. Then, we need to answer queries of the form "how many elements in a given range have value at most c?" We can answer these queries with any range-query data structure (e.g., a Fenwick tree or a range tree) in increasing order of c, by marking elements in the list as they qualify.
+
+Here is a solution by Travis Hance, using the first approach:
+
+运行时间：1194ms 使用内存：29960KB
+*/
+
+#include <cstdio>
+#include <queue>
+#include <vector>
+using namespace std;
+
+#define NMAX 200005
+
+struct entry {
+    long long weight;
+    long long depth;
+    bool operator<(entry const& o) const {
+        return depth < o.depth;
+    }
+};
+
+struct node {
+    vector<node*> children;
+    int sizeInNodes;
+    long long answer;
+    priority_queue<entry>* q;
+    long long weight;
+    long long qweight;
+    long long dist;
+};
+node nodes[NMAX];
+
+long long l;
+
+void dfs(node* v, long long depth) {
+    v->sizeInNodes = 1;
+    node* largestChild = NULL;
+    for (int i = 0; i < v->children.size(); i++) {
+        node* c = v->children[i];
+        dfs(c, depth + c->dist);
+        v->sizeInNodes += c->sizeInNodes;
+        if (largestChild == NULL || c->sizeInNodes > largestChild->sizeInNodes ) {
+            largestChild = c;
+        }
+    }
+
+    if (largestChild == NULL) {
+        v->q = new priority_queue<entry>();
+        v->qweight = 0;
+    } else {
+        v->q = largestChild->q;
+        v->qweight = largestChild->qweight;
+        while (v->q->size() > 0 && v->q->top().depth > depth + l) {
+            v->qweight -= v->q->top().weight;
+            v->q->pop();
+        }
+    }
+
+    for (int i = 0; i < v->children.size(); i++) {
+        node* c = v->children[i];
+        if (c != largestChild) {
+            while (c->q->size() > 0) {
+                entry e = c->q->top();
+                c->q->pop();
+                if (e.depth <= depth + l) {
+                    v->q->push(e);
+                    v->qweight += e.weight;
+                }
+            }
+        }
+    }
+
+    entry e;
+    e.weight = v->weight;
+    e.depth = depth;
+    v->q->push(e);
+    v->qweight += e.weight;
+
+    v->answer = v->qweight;
+}
+
+int main( ) {
+    int n;
+    scanf("%d", &n);
+    scanf("%lld", &l);
+    nodes[0].weight = 1;
+    nodes[0].dist = 0;
+    for (int i = 1; i < n; i++) {
+        int parent;
+        scanf("%d", &parent);
+        parent--;
+        nodes[parent].children.push_back(&nodes[i]);
+        nodes[i].weight = 1;
+        scanf("%lld", &nodes[i].dist);
+    }
+
+    dfs(&nodes[0], 0);
+
+    for (int i = 0; i < n; i++) {
+        printf("%lld\n", nodes[i].answer);
+    }
+}
+
+
+
+24126	Crazy Fences
+
+/*
+Solution Notes (Richard Peng): Two cows can reach each other if and only it is the case that, for each polygon, both cows are either in the interior of that polygon, or in the exterior. A community of cows is just a set of cows that are on the same "side" of each polygon. (A formal rigorous mathematical proof of this is nontrivial, but our geometric intuition suffices for this problem.)
+
+If we can compute the polygons that a cow is in, we can sort the cows by the list of polygons that contain them, and pick the list which has most frequent occurence. As sorting the C cows takes O(ClogC) comparisons and each cow has N attributes, this step takes O(NlogN) time.
+
+One way to check whether a cow is inside a polygon is to draw a ray from that cow in some direction that doesn't intersect a vertex of the polygon, and count the number of times this ray intersects the sides of the polygon. If the count is odd, the cow is contained, otherwise it's outside. This ray can be chosen arbitrarily, so there are a couple of approaches. One can always choose a horizontal ray for easy geometry, but then one has to be careful when vertices of the polygon lie on the ray. Alternatively, one can avoid the vertex issue entirely by choosing a line that will never contain any vertex (such as the ray from (x,y) through (x + 1, y + 1,000,000,000)) or by randomly choosing directions until one works. This can be done in time linear in the size of the polygon. As the total sizes of all polygons is N and there are C cows, this stage takes O(NC).
+
+Here is Travis Hance's solution in C++:
+
+运行时间：78ms 使用内存：1564KB
+*/
+
+#include <cstdio>
+#include <map>
+#include <vector>
+#include <algorithm>
+#include <cstring>
+using namespace std;
+
+#define NFENCES_MAX 1005
+#define NCOWS_MAX 1005
+
+bool rayHits(long long cx, long long cy,
+                         long long f1x, long long f1y,
+                         long long f2x, long long f2y) {
+    if ((f1y > cy) ^ (f2y > cy)) {
+        return (f1y - f2y < 0) ^ (f2x * (f1y - cy) + f1x * (cy - f2y) > cx * (f1y - f2y));
+    } else {
+        return false;
+    }
+}
+
+map<pair<int,int>, vector<int> > pointMap;
+pair<pair<int,int>, pair<int,int> > fences[NFENCES_MAX];
+int cycle[NFENCES_MAX];
+
+char parities[NCOWS_MAX][NFENCES_MAX];
+
+char* parityptrs[NCOWS_MAX];
+inline bool ptrcmp(char* a, char* b) {
+    return strcmp(a, b) < 0;
+}
+
+int main()
+{
+    int nFences, nCows;
+    scanf("%d", &nFences);
+    scanf("%d", &nCows);
+    for (int i = 0; i < nFences; i++) {
+        pair<int,int> p1, p2;
+        scanf("%d", &p1.first);
+        scanf("%d", &p1.second);
+        scanf("%d", &p2.first);
+        scanf("%d", &p2.second);
+        pointMap[p1].push_back(i);
+        pointMap[p2].push_back(i);
+        fences[i] = pair<pair<int,int>, pair<int,int> >(p1, p2);
+
+        cycle[i] = -1;
+        memset(parities[i], 0, nCows);
+    }
+    for (int i = 0; i < nCows; i++) {
+        parityptrs[i] = parities[i];
+    }
+
+    int nCycles = 0;
+    for (int i = 0; i < nFences; i++) {
+        if (cycle[i] == -1) {
+            int j = i;
+            pair<int,int> last = fences[i].first;
+            do {
+                cycle[j] = nCycles;
+                last = fences[j].first == last ? fences[j].second : fences[j].first;
+                vector<int> const& v = pointMap[last];
+                j = (v[0] == j ? v[1] : v[0]);
+            } while (j != i);
+            nCycles++;
+        }
+    }
+
+    for (int i = 0; i < nCows; i++) {
+        int cowx, cowy;
+        scanf("%d", &cowx);
+        scanf("%d", &cowy);
+        for (int j = 0; j < nFences; j++) {
+            parities[i][cycle[j]] ^= (char)rayHits(cowx, cowy, fences[j].first.first, fences[j].first.second, fences[j].second.first, fences[j].second.second);
+        }
+        for (int j = 0; j < nCycles; j++) {
+            parities[i][j] = parities[i][j] ? '1' : '0';
+        }
+        parities[i][nCycles] = '\0';
+    }
+
+    sort(parityptrs, parityptrs + nCows, ptrcmp);
+
+    int maxans = 0;
+    int curcount = 0;
+    for (int i = 0; i < nCows; i++) {
+        if (i == 0 || strcmp(parityptrs[i], parityptrs[i-1]) != 0) {
+            curcount = 1;
+        } else {
+            curcount++;
+        }
+        maxans = max(maxans, curcount);
+    }
+    printf("%d\n", maxans);
+}
+
+
+
+24127	Milk Routing
+
+/*
+Solution Notes (Jonathan Paulson): It's not obvious how to make the tradeoff between latency and capacity. But the graph is really small: only 500 edges. Even a quadratic algorithm will be fast enough.
+
+Consider the optimal path. It has some minimum capacity C. The key observation is that if you throw out edges with capacity less than C, then the optimal path is just a shortest path. If only we knew C, we could just run Dijkstra.
+
+But there are only M possible values for C (the minimum capacity of the optimal path is the capacity of its bottleneck edge, which is *some* edge). So we can just try all M values for C, run Dijkstra on each subgraph (of edges with capacity at least C), and take the best of these M paths (of course, if we choose a value if C so that the destination is not reachable, it can't have been right). Since Dijkstra is O(M log M), this idea is O(M^2 log M), which is fast enough. Here is Travis Hance's solution in C++:
+
+结果：Accepted 运行时间：124ms 使用内存：608KB
+*/
+
+#include <cstdio>
+#include <vector>
+#include <algorithm>
+#include <queue>
+using namespace std;
+
+#define NMAX 500
+#define MMAX 500
+#define infinite 1000000000000000000LL
+
+struct edge {
+    int dest;
+    long long latency, cap;
+    edge(int dest, long long latency, long long cap) :
+        dest(dest), latency(latency), cap(cap) { }
+};
+vector<edge> edges[NMAX];
+long long caps[MMAX];
+
+struct entry {
+    int v;
+    long long dist;
+    entry(int v, long long dist) : v(v), dist(dist) { }
+    bool operator<(entry const& o) const {
+        return dist > o.dist;
+    }
+};
+
+bool visited[NMAX];
+long long minL( int n, int source, int dest, int minCap ) {
+    for ( int i = 0; i < n; i++ ) {
+        visited[i] = false;
+    }
+    priority_queue<entry> q;
+    q.push( entry(source, 0) );
+    while( q.size() > 0 ) {
+        entry cur = q.top();
+        q.pop();
+        if (visited[cur.v]) {
+            continue;
+        }
+        if (cur.v == dest) {
+            return cur.dist;
+        }
+        visited[cur.v] = true;
+        for (int i = 0; i < edges[cur.v].size(); i++) {
+            edge e = edges[cur.v][i];
+            if (e.cap >= minCap) {
+                q.push(entry(e.dest, cur.dist + e.latency));
+            }
+        }
+    }
+    return infinite;
+}
+
+int main( ) {
+    int n, m;
+    long long X;
+    while( scanf(" %d%d%lld", &n, &m, &X) == 3 ) {
+        for (int i=0; i<n; i++ ) edges[i].clear();
+        for (int i = 0; i < m; i++) {
+            int a, b;
+            long long l, c;
+            scanf("%d", &a);
+            scanf("%d", &b);
+            scanf("%lld", &l);
+            scanf("%lld", &c);
+            a--;
+            b--;
+            edges[a].push_back(edge(b, l, c));
+            edges[b].push_back(edge(a, l, c));
+            caps[i] = c;
+        }
+
+        long long mintime = infinite;
+        for (int i = 0; i < m; i++) {
+            long long c = caps[i];
+            long long l = minL(n, 0, n-1, c);
+            if (l != infinite)
+                mintime = min(mintime, l + X/c);
+        }
+        printf("%lld\n", mintime);
+    }
+
+    return 0;
+}
+
+
+
+
+
+24128	Wifi Setup
+
+/*
+Solution Notes (Jonathan Paulson): Once we put down some wifi station, it covers some interval of cows, and covering the remaining cows is just solving two independent subproblems (the intervals to the left and right of our wifi station). So we might want to look for a dynamic programming solution.
+
+Since every interval covered should start and end at a cow (exercise: prove it), there are only n^2 possible wifi stations we could put down. Since every subproblem starts and ends at a cow, there are n^2 subproblems to consider. 
+
+So this already gives an O(n^4) dynamic programming solution (for each query interval, try each possible next wifi station).
+
+But this is far too slow -- we want O(n^2).
+
+The next observation is that *some* wifi station must cover the leftmost cow, so we might as well place that one next. There are only n wifi stations that cover the first cow (each possible ending position).
+
+Furthermore, whenever we put down such a wifi station, we are left with some suffix of the cows that need to be covered, so there are only n subproblems to consider now (put another way, our state is just "how many cows we have covered so far" or "the start of the next interval").
+
+This gives an O(n^2) solution, just what we wanted!
+
+Recap: Let the cow positions be x_1 < x_2 < ... < x_n. Let f(i) be the cost to provide wifi to cows i..n. 
+
+Then the answer is f(0), and we have the recurrence f(i) = min_{j=i^n} cost(x_i, x_j) + f(j+1), and the base case f(n+1)=0 (the cost to provide wifi to zero costs is 0). Here cost(x1, x2) denotes the cost to provide wifi on [x1,x2] with a single wifi station, which is A+B*(x2-x1)/2.
+
+In fact, it is possible to do better than this DP solution, although it was unnecessary to do so to get full credit. We make the following observation: 
+
+for a given arrangement of wifi stations, the total cost is S*A + T*B/2 where S is the total number of wifi stations and T is the total length of the line covered by wifi. 
+
+Consider two adjacent wifi stations, at positions X_1 and X_2 with X_1 < X_2. 
+
+Suppose the distance between the rightmost cow covered by X_1 and the leftmost cow covered by X_2 is U. 
+
+So if we replace these two wifi stations with one, the new cost is (S-1)*A + (T+U)*B/2. 
+
+Then it is advantageous to switch to this new arrangement if A > U*B/2. 
+
+So we immediately get a linear time solution (after sorting the cows): 
+
+if two adjacent cows are of distance at least 2*A/B away from each other, then we want to give them different wifi stations. 
+
+Otherwise, we want to give them the same wifi stations.
+
+结果：Accepted 运行时间：13ms 使用内存：516KB
+*/
+
+#include <cstdio>
+#include <algorithm>
+using namespace std;
+
+#define NMAX 2000
+
+long long locs[NMAX];
+
+int main( ) {
+    int n;
+    long long A, B;
+    while( scanf(" %d%lld%lld", &n, &A, &B ) == 3 ) {
+        for (int i = 0; i < n; i++)
+            scanf("%lld", &locs[i]);
+
+        sort(locs, locs + n);
+
+        long long nComponents = 1;
+        long long totalLength = 0;
+        for (int i = 0; i < n - 1; i++) {
+            int U = locs[i+1] - locs[i];
+            if (U*B > 2*A)
+                nComponents++;
+            else
+                totalLength += U;
+        }
+
+        long long totalCostTimes2 = nComponents*A*2 + totalLength*B;
+        if (totalCostTimes2 % 2 == 0) {
+            printf("%lld\n", totalCostTimes2 / 2);
+        } else {
+            printf("%lld.5\n", totalCostTimes2 / 2);
+        }
+    }
+
+    return 0;
+}
+
+
+
+/*
+Here is a solution in C++ for the DP method:
+
+运行时间：113ms 使用内存：524KB
+*/
+
+#include <cstdio>
+#include <algorithm>
+using namespace std;
+
+#define NMAX 2000
+
+// x-coordinates of the cows
+long long locs[NMAX];
+
+// dp[i] will store the minimum cost needed to give coverage
+// to the leftmost i cows (0 <= i <= n). Since the minimum cost
+// might be a half integer, we actually store twice the cost so
+// that we only have to deal with integers.
+long long dp[NMAX + 1];
+
+int main( ) {
+    int n;
+    long long A, B;
+    while( scanf( "%d%lld%lld", &n, &A, &B ) == 3 ) {
+        for ( int i = 0; i < n; i++ )
+            scanf( "%lld", &locs[i] );
+
+        sort(locs, locs + n);
+
+        dp[0] = 0;
+        for ( int i = 1; i <= n; i++ ) {
+            dp[i] = 1000000000000000000LL;
+            for (int j = 0; j < i; j++)
+                dp[i] = min(dp[i], dp[j] + 2*A + B*(locs[i-1] - locs[j]));
+        }
+
+        if (dp[n] % 2 == 0)
+            printf("%lld\n", dp[n] / 2);
+        else
+            printf("%lld.5\n", dp[n] / 2);
+    }
+
+    return 0;
+}
+
+
+
+/*
+题意：给出在同一条直线上的n个点和两个数A，B，现在要在这条直线上放置若干个信号塔，每个信号塔有一个r值，假设它的位置是x，则它能覆盖的范围是x-r~x+r，放置一个信号塔的花费是A+B*r，问要覆盖所有的点最小的花费是多少。
+
+分析：看了飞鸿哥的报告才明白的，DP神马的弱爆了=_=
+
+dp[i]表示从点1到i最多放置i个信号塔的最小花费。先预处理[1,i]区间放置一个信号塔的花费，然后枚举最多放置2~n个信号塔求最小花费,最后dp[n]就是答案了。
+
+状态转移方程：dp[i]=min(dp[i],dp[j]+a+(num[i]-num[j+1])*b/2.0)
+
+这题的输出有点麻烦，有整数也有浮点数，所以要判断一下在输出。
+
+结果：Accepted 运行时间：146ms 使用内存：508KB
+*/
+
+#include<stdio.h>
+#include<string.h>
+#include<algorithm>
+using namespace std;
+
+double dp[2005];
+int num[2005];
+
+double min( d ouble a,double b ) {
+    return a<b ? a : b;
+}
+
+int main( ) {
+    int n,a,b,i,j;
+    while( scanf( "%d%d%d", &n, &a, &b ) == 3 )  {
+        for(i=1;i<=n;i++)
+            scanf( "%d", &num[i] );
+        sort( num+1, num+1+n );
+
+        for( i=1; i<=n; i++ )
+            dp[i]=a+(num[i]-num[1])/2.0*b;
+        for( i=2; i<=n; i++ )
+            for( j=1; j<i; j++ )
+                dp[i] = min( dp[i],a+(num[i]-num[j+1])/2.0*b+dp[j] );
+
+        int ans = dp[n];
+        if( dp[n] > ans )
+            printf( "%d.5\n", ans );
+        else
+            printf( "%d\n", ans );
+    }
+    return 0;
+}
